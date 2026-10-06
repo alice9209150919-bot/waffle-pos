@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>雞蛋糕餐車專屬 POS 系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Noto Sans TC', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#fffbeb',
+              100: '#fef3c7',
+              200: '#fde68a',
+              300: '#fcd34d',
+              400: '#fbbf24',
+              500: '#f59e0b',
+              600: '#d97706',
+              700: '#b45309',
+              800: '#92400e',
+              900: '#78350f',
+              dark: '#451a03',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 隱藏滾動條但保持滾動 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    /* 點擊反饋效果 */
+    .tap-active:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body class="bg-amber-50/60 text-stone-800 font-sans min-h-screen flex flex-col antialiased selection:bg-brand-300">
+
+  <!-- 頂部導航欄 -->
+  <header class="bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 text-amber-50 px-4 py-3 shadow-md sticky top-0 z-30 flex items-center justify-between">
+    <div class="flex items-center space-x-2.5">
+      <span class="text-2xl p-1.5 bg-amber-600/60 rounded-xl shadow-inner inline-block">🧇</span>
+      <div>
+        <h1 class="text-lg md:text-xl font-black tracking-wide flex items-center gap-1.5">
+          現烤雞蛋糕 <span class="bg-amber-400 text-amber-950 text-xs px-2 py-0.5 rounded-full font-bold">POS 收銀</span>
+        </h1>
+        <p class="text-xs text-amber-200/90 font-medium" id="currentDateDisplay">載入日期中...</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <!-- 切換統計視圖 (手機模式) -->
+      <button onclick="toggleMobileView()" id="mobileViewToggleBtn" class="lg:hidden bg-amber-600 hover:bg-amber-500 active:scale-95 text-white text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 border border-amber-400/30 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+        <span id="mobileViewToggleText">今日報表</span>
+      </button>
+      <!-- 日結算選單按鈕 -->
+      <button onclick="openDaySummaryModal()" class="bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs md:text-sm px-3.5 py-1.5 rounded-lg font-black shadow flex items-center gap-1 tap-active transition-all">
+        <span>📊 日結算 / 匯出</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主工作區域 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+    <!-- 左側主要區域：菜單與目前訂單購物車 (占 7 格) -->
+    <section id="posSection" class="lg:col-span-7 flex flex-col gap-3">
+      
+      <!-- 菜單點餐卡片清單 -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-amber-100 flex-1">
+        <div class="flex items-center justify-between mb-2.5">
+          <h2 class="text-sm font-black text-amber-900 flex items-center gap-1.5">
+            <span class="w-2 h-4 bg-brand-500 rounded-full inline-block"></span>
+            點餐菜單 (點擊加入訂單)
+          </h2>
+          <span class="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">現點現烤．出爐請小心燙口</span>
+        </div>
+
+        <!-- 菜單格線 -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5" id="menuGrid">
+          <!-- 菜單按鈕由 JS 自動渲染 -->
+        </div>
+      </div>
+
+      <!-- 目前結帳籃 (購物車) -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-amber-200/80 flex flex-col">
+        <div class="flex items-center justify-between pb-2 border-b border-amber-100">
+          <div class="flex items-center gap-2">
+            <h2 class="text-base font-black text-amber-950">🛒 本次結帳明細</h2>
+            <span id="cartCountBadge" class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">0 份</span>
+          </div>
+          <button onclick="clearCart()" class="text-xs text-stone-600 hover:text-red-700 flex items-center gap-1 py-1 px-2 rounded hover:bg-stone-50 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            清空本單
+          </button>
+        </div>
+
+        <!-- 購物車列表容器 -->
+        <div id="cartItemList" class="divide-y divide-amber-50 max-h-44 sm:max-h-52 overflow-y-auto my-2 pr-1 space-y-1">
+          <div class="text-center py-7 text-stone-500 text-sm flex flex-col items-center">
+            <span class="text-3xl mb-1 opacity-50">🥞</span>
+            點擊上方品項開始點餐
+          </div>
+        </div>
+
+        <!-- 金額試算與收銀找零區 -->
+        <div class="pt-3 border-t border-amber-100/90 bg-amber-50/50 -mx-4 -mb-4 p-4 rounded-b-2xl">
+          <div class="flex justify-between items-baseline mb-3">
+            <span class="text-stone-700 text-sm font-bold">訂單總金額</span>
+            <span class="text-3xl font-black text-amber-900 tracking-tight" id="cartTotalText">$0</span>
+          </div>
+
+          <!-- 快速實收與找零計算輔助 -->
+          <div class="bg-white p-2.5 rounded-xl border border-amber-200/80 mb-3 space-y-2">
+            <div class="flex items-center justify-between text-xs text-stone-600">
+              <span class="font-bold flex items-center gap-1">
+                <span>💵 客人支付：</span>
+                <span id="paidAmountDisplay" class="text-amber-900 font-extrabold text-sm">$0</span>
+              </span>
+              <span class="font-bold flex items-center gap-1">
+                <span>應找零錢：</span>
+                <span id="changeDisplay" class="text-red-800 font-black text-base">$0</span>
+              </span>
+            </div>
+            
+            <!-- 面額快捷鍵 -->
+            <div class="flex gap-1.5 flex-wrap">
+              <button onclick="setExactPayment()" class="flex-1 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold py-1.5 px-2 rounded-lg transition active:scale-95 text-center">剛好</button>
+              <button onclick="addPayment(100)" class="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold py-1.5 px-2 rounded-lg transition active:scale-95 text-center">$100</button>
+              <button onclick="addPayment(200)" class="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold py-1.5 px-2 rounded-lg transition active:scale-95 text-center">$200</button>
+              <button onclick="addPayment(500)" class="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold py-1.5 px-2 rounded-lg transition active:scale-95 text-center">$500</button>
+              <button onclick="addPayment(1000)" class="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold py-1.5 px-2 rounded-lg transition active:scale-95 text-center">$1000</button>
+              <button onclick="clearPayment()" class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold px-2.5 py-1.5 rounded-lg transition active:scale-95">歸零</button>
+            </div>
+          </div>
+
+          <!-- 確認結帳完成按鈕 -->
+          <button id="checkoutBtn" onclick="submitCheckout()" disabled class="w-full bg-amber-800 text-white font-black text-lg py-3.5 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 tap-active disabled:opacity-40 disabled:cursor-not-allowed">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+            確認出餐 / 結帳完成
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右側面板：當日銷售統計與訂單紀錄 (占 5 格) -->
+    <section id="statsSection" class="lg:col-span-5 hidden lg:flex flex-col gap-4">
+      
+      <!-- 今日即時數據卡片 -->
+      <div class="grid grid-cols-3 gap-2.5">
+        <div class="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-3 text-white shadow-sm flex flex-col justify-between">
+          <p class="text-xs font-bold opacity-90">今日總營收</p>
+          <p class="text-xl sm:text-2xl font-black mt-1" id="statTodayRevenue">$0</p>
+          <span class="text-[10px] bg-black/10 px-1.5 py-0.5 rounded self-start mt-1">累計實收</span>
+        </div>
+        <div class="bg-white rounded-2xl p-3 shadow-sm border border-amber-200 flex flex-col justify-between">
+          <p class="text-xs font-bold text-stone-600">完成訂單</p>
+          <p class="text-xl sm:text-2xl font-black text-stone-800 mt-1" id="statTodayOrders">0 <span class="text-xs font-normal">單</span></p>
+          <span class="text-[10px] text-amber-800 font-semibold bg-amber-100 px-1.5 py-0.5 rounded self-start mt-1">平均客單: <span id="statAvgTicket">$0</span></span>
+        </div>
+        <div class="bg-white rounded-2xl p-3 shadow-sm border border-amber-200 flex flex-col justify-between">
+          <p class="text-xs font-bold text-stone-600">賣出總份數</p>
+          <p class="text-xl sm:text-2xl font-black text-stone-800 mt-1" id="statTodayItems">0 <span class="text-xs font-normal">份</span></p>
+          <span class="text-[10px] text-emerald-800 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded self-start mt-1">銷量統計</span>
+        </div>
+      </div>
+
+      <!-- 品項銷售明細排行榜 -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-amber-100 flex flex-col">
+        <h3 class="text-xs font-black text-stone-800 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <span class="w-1.5 h-3 bg-amber-500 rounded-full inline-block"></span>
+            今日口味銷售明細
+          </span>
+          <span class="text-[11px] font-normal text-stone-600">數量 / 營收佔比</span>
+        </h3>
+        <div id="flavorStatsList" class="space-y-2">
+          <!-- 統計長條圖由 JS 動態生成 -->
+        </div>
+      </div>
+
+      <!-- 今日訂單流水紀錄清單 -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-amber-100 flex-1 flex flex-col min-h-[220px]">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-xs font-black text-stone-800 flex items-center gap-1.5">
+            <span class="w-1.5 h-3 bg-stone-500 rounded-full inline-block"></span>
+            今日即時交易流水帳
+          </h3>
+          <span class="text-[11px] text-stone-600" id="orderListCountHint">共 0 筆</span>
+        </div>
+
+        <div id="orderHistoryList" class="divide-y divide-stone-100 overflow-y-auto max-h-60 sm:max-h-72 pr-1 flex-1">
+          <div class="text-center py-8 text-stone-500 text-xs">尚無任何交易記錄</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 日結算與報表匯出 Modal 彈窗 -->
+  <div id="daySummaryModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden">
+    <div class="bg-white w-full max-w-lg rounded-3xl p-5 shadow-2xl border border-amber-200 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between pb-3 border-b border-stone-200">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">📋</span>
+          <div>
+            <h2 class="text-lg font-black text-stone-900">今日營運結算報表</h2>
+            <p class="text-xs text-stone-600" id="modalDateSubtitle">今日業績速報</p>
+          </div>
+        </div>
+        <button onclick="closeDaySummaryModal()" class="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition">✕</button>
+      </div>
+
+      <div class="overflow-y-auto py-3 space-y-4 my-1">
+        <!-- 結算重點卡片 -->
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 grid grid-cols-3 text-center">
+          <div>
+            <div class="text-xs text-stone-600 font-bold">總營業額</div>
+            <div class="text-xl font-black text-amber-900 mt-1" id="modalSummaryRevenue">$0</div>
+          </div>
+          <div class="border-x border-amber-200">
+            <div class="text-xs text-stone-600 font-bold">結帳單數</div>
+            <div class="text-xl font-black text-stone-800 mt-1" id="modalSummaryOrders">0 單</div>
+          </div>
+          <div>
+            <div class="text-xs text-stone-600 font-bold">銷售總包數</div>
+            <div class="text-xl font-black text-stone-800 mt-1" id="modalSummaryItems">0 份</div>
+          </div>
+        </div>
+
+        <!-- LINE 報表預覽區 -->
+        <div>
+          <label class="block text-xs font-bold text-stone-700 mb-1 flex justify-between items-center">
+            <span>LINE 回報 / 記事本文字</span>
+            <span class="text-[10px] text-stone-600 font-normal">方便直接複製打烊對帳</span>
+          </label>
+          <textarea id="lineReportTextArea" readonly rows="7" class="w-full bg-stone-50 border border-stone-300 rounded-xl p-2.5 text-xs font-mono text-stone-800 focus:outline-none select-all"></textarea>
+        </div>
+      </div>
+
+      <!-- 操作按鈕列 -->
+      <div class="pt-3 border-t border-stone-200 flex flex-col gap-2">
+        <div class="flex gap-2">
+          <button onclick="copyLineReport()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-3 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow transition active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+            複製 LINE 日報表文字
+          </button>
+          <button onclick="exportCSV()" class="flex-1 bg-amber-700 hover:bg-amber-800 text-white font-black py-2.5 px-3 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow transition active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            匯出 CSV 檔 (Excel)
+          </button>
+        </div>
+        <button onclick="requestResetDayData()" class="w-full text-stone-600 hover:text-red-600 text-xs py-2 rounded-lg font-bold flex items-center justify-center gap-1 hover:bg-red-50 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          重置今日營業資料 (開啟新的一天)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 自定義訊息提示 Toast (取代不可使用的 alert) -->
+  <div id="toastNotification" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900/90 text-white text-xs sm:text-sm px-4 py-2.5 rounded-full shadow-2xl transition-all duration-300 transform translate-y-16 opacity-0 pointer-events-none z-50 flex items-center gap-2">
+    <span id="toastIcon">✨</span>
+    <span id="toastMsg">提示訊息</span>
+  </div>
+
+  <!-- 二次確認彈窗 (取代不可使用的 confirm) -->
+  <div id="confirmModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl text-center">
+      <div id="confirmIcon" class="text-3xl mb-2">⚠️</div>
+      <h3 id="confirmTitle" class="text-base font-black text-stone-900 mb-1">請確認操作</h3>
+      <p id="confirmMessage" class="text-xs text-stone-600 mb-5 leading-relaxed">此操作無法復原，請確認是否繼續？</p>
+      <div class="flex gap-2">
+        <button id="confirmCancelBtn" class="flex-1 py-2.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition">取消</button>
+        <button id="confirmOkBtn" class="flex-1 py-2.5 px-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow transition">確認執行</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 餐車標準菜單配置
+    const MENU_ITEMS = [
+      { id: 'orig_s', name: '原味 (小)', price: 50, badge: '熱銷小點', color: 'from-amber-400 to-amber-500', icon: '🧇' },
+      { id: 'orig_l', name: '原味 (大)', price: 90, badge: '划算推薦', color: 'from-amber-500 to-amber-600', icon: '🧇' },
+      { id: 'choco',  name: '巧克力',    price: 70, badge: '濃醇爆漿', color: 'from-amber-800 to-amber-950', icon: '🍫' },
+      { id: 'corn',   name: '玉米',      price: 70, badge: '鹹甜多汁', color: 'from-yellow-400 to-yellow-500', icon: '🌽' },
+      { id: 'cheese', name: '起司',      price: 70, badge: '香濃牽絲', color: 'from-orange-400 to-amber-500', icon: '🧀' },
+      { id: 'custard',name: '卡士達',    price: 70, badge: '香甜滑順', color: 'from-amber-300 to-yellow-400', icon: '🍮' },
+    ];
+
+    // 全域狀態：當前點餐車
+    let currentCart = {}; // { 'orig_s': 2, 'choco': 1 }
+    let currentPaid = 0;   // 客人付的現金
+
+    // 本地持久化資料存儲 Key
+    const STORAGE_KEY = 'CAKE_POS_ORDERS_DATA_V1';
+
+    // 今日所有訂單記錄陣列
+    let todayOrders = [];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initDateDisplay();
+      loadOrdersFromStorage();
+      renderMenuButtons();
+      renderCart();
+      updateDashboard();
+    });
+
+    // 初始化日期標籤
+    function initDateDisplay() {
+      const now = new Date();
+      const days = ['日', '一', '二', '三', '四', '五', '六'];
+      const dateStr = `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getDate().toString().padStart(2, '0')} (週${days[now.getDay()]})`;
+      document.getElementById('currentDateDisplay').textContent = dateStr;
+      document.getElementById('modalDateSubtitle').textContent = `${dateStr} 營運結算`;
+    }
+
+    // 從 LocalStorage 載入資料
+    function loadOrdersFromStorage() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          todayOrders = JSON.parse(saved);
+        } else {
+          todayOrders = [];
+        }
+      } catch (e) {
+        console.error('讀取訂單記錄失敗', e);
+        todayOrders = [];
+      }
+    }
+
+    // 儲存資料至 LocalStorage
+    function saveOrdersToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(todayOrders));
+      } catch (e) {
+        console.error('儲存訂單記錄失敗', e);
+        showToast('⚠️ 儲存至本地失敗，空間可能不足');
+      }
+    }
+
+    // 渲染菜單按鈕
+    function renderMenuButtons() {
+      const container = document.getElementById('menuGrid');
+      container.innerHTML = '';
+
+      MENU_ITEMS.forEach(item => {
+        const btn = document.createElement('button');
+        btn.onclick = () => addItemToCart(item.id);
+        btn.className = `tap-active relative bg-white border-2 border-amber-200/90 hover:border-amber-400 rounded-2xl p-3 flex flex-col justify-between text-left shadow-sm hover:shadow-md transition-all group overflow-hidden h-28 sm:h-32`;
+        
+        btn.innerHTML = `
+          <div class="flex items-start justify-between w-full">
+            <span class="text-2xl">${item.icon}</span>
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200/50">${item.badge}</span>
+          </div>
+          <div class="mt-1">
+            <div class="font-extrabold text-stone-900 text-base sm:text-lg group-hover:text-amber-800 transition">${item.name}</div>
+            <div class="flex items-baseline gap-1 mt-0.5">
+              <span class="text-xs text-stone-600 font-medium">NT$</span>
+              <span class="text-xl font-black text-amber-800">${item.price}</span>
+            </div>
+          </div>
+          <div class="absolute bottom-1 right-1.5 opacity-10 group-hover:opacity-20 text-3xl font-black transition">
+            +
+          </div>
+        `;
+        container.appendChild(btn);
+      });
+    }
+
+    // 加入商品到目前訂單
+    function addItemToCart(itemId) {
+      if (!currentCart[itemId]) {
+        currentCart[itemId] = 0;
+      }
+      currentCart[itemId] += 1;
+      renderCart();
+    }
+
+    // 調整購物車內數量
+    function adjustCartQty(itemId, delta) {
+      if (!currentCart[itemId]) return;
+      currentCart[itemId] += delta;
+      if (currentCart[itemId] <= 0) {
+        delete currentCart[itemId];
+      }
+      renderCart();
+    }
+
+    // 移除單項
+    function removeCartItem(itemId) {
+      delete currentCart[itemId];
+      renderCart();
+    }
+
+    // 清空目前單
+    function clearCart() {
+      currentCart = {};
+      currentPaid = 0;
+      renderCart();
+    }
+
+    // 計算本單總計
+    function getCartTotal() {
+      let total = 0;
+      let totalItems = 0;
+      for (const [id, qty] of Object.entries(currentCart)) {
+        const item = MENU_ITEMS.find(m => m.id === id);
+        if (item) {
+          total += item.price * qty;
+          totalItems += qty;
+        }
+      }
+      return { total, totalItems };
+    }
+
+    // 渲染購物車介面
+    function renderCart() {
+      const container = document.getElementById('cartItemList');
+      const countBadge = document.getElementById('cartCountBadge');
+      const totalText = document.getElementById('cartTotalText');
+      const checkoutBtn = document.getElementById('checkoutBtn');
+
+      const { total, totalItems } = getCartTotal();
+      countBadge.textContent = `${totalItems} 份`;
+      totalText.textContent = `$${total}`;
+
+      // 若金額為 0，禁用結帳按鈕
+      checkoutBtn.disabled = total === 0;
+
+      // 檢查購物車內容
+      const itemKeys = Object.keys(currentCart);
+      if (itemKeys.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-7 text-stone-500 text-sm flex flex-col items-center">
+            <span class="text-3xl mb-1 opacity-50">🥞</span>
+            請點選上方品項加入訂單
+          </div>
+        `;
+        currentPaid = 0;
+        updatePaymentDisplay();
+        return;
+      }
+
+      container.innerHTML = '';
+      itemKeys.forEach(id => {
+        const item = MENU_ITEMS.find(m => m.id === id);
+        if (!item) return;
+        const qty = currentCart[id];
+        const subtotal = item.price * qty;
+
+        const row = document.createElement('div');
+        row.className = 'py-2 flex items-center justify-between gap-2';
+        row.innerHTML = `
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <span class="text-lg">${item.icon}</span>
+            <div class="truncate">
+              <p class="text-sm font-bold text-stone-900 truncate">${item.name}</p>
+              <p class="text-xs text-stone-600">$${item.price} /份</p>
+            </div>
+          </div>
+
+          <!-- 數量增減按鈕 -->
+          <div class="flex items-center gap-1.5 bg-stone-100 rounded-xl p-1 border border-stone-200">
+            <button onclick="adjustCartQty('${item.id}', -1)" class="w-7 h-7 bg-white rounded-lg shadow-sm font-black text-stone-700 flex items-center justify-center hover:bg-stone-200 active:scale-95">-</button>
+            <span class="w-6 text-center text-sm font-black text-stone-900">${qty}</span>
+            <button onclick="adjustCartQty('${item.id}', 1)" class="w-7 h-7 bg-white rounded-lg shadow-sm font-black text-stone-700 flex items-center justify-center hover:bg-stone-200 active:scale-95">+</button>
+          </div>
+
+          <!-- 小計與刪除 -->
+          <div class="text-right w-16">
+            <p class="text-sm font-black text-amber-900">$${subtotal}</p>
+          </div>
+          <button onclick="removeCartItem('${item.id}')" class="text-stone-400 hover:text-red-500 p-1">
+            ✕
+          </button>
+        `;
+        container.appendChild(row);
+      });
+
+      updatePaymentDisplay();
+    }
+
+    // 收銀找零邏輯
+    function setExactPayment() {
+      const { total } = getCartTotal();
+      currentPaid = total;
+      updatePaymentDisplay();
+    }
+
+    function addPayment(amt) {
+      currentPaid = (currentPaid || 0) + amt;
+      updatePaymentDisplay();
+    }
+
+    function clearPayment() {
+      currentPaid = 0;
+      updatePaymentDisplay();
+    }
+
+    function updatePaymentDisplay() {
+      const { total } = getCartTotal();
+      const paidDisplay = document.getElementById('paidAmountDisplay');
+      const changeDisplay = document.getElementById('changeDisplay');
+
+      paidDisplay.textContent = `$${currentPaid}`;
+      
+      const change = currentPaid - total;
+      if (total === 0 || currentPaid === 0) {
+        changeDisplay.textContent = `$0`;
+        changeDisplay.className = "text-stone-400 font-bold text-sm";
+      } else if (change >= 0) {
+        changeDisplay.textContent = `$${change}`;
+        changeDisplay.className = "text-emerald-600 font-black text-base";
+      } else {
+        changeDisplay.textContent = `不足 $${Math.abs(change)}`;
+        changeDisplay.className = "text-red-500 font-black text-xs";
+      }
+    }
+
+    // 完成結帳與出單
+    function submitCheckout() {
+      const { total, totalItems } = getCartTotal();
+      if (total === 0) return;
+
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+      // 複製一份當前訂單項目
+      const itemsSnapshot = [];
+      for (const [id, qty] of Object.entries(currentCart)) {
+        const item = MENU_ITEMS.find(m => m.id === id);
+        if (item) {
+          itemsSnapshot.push({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            qty: qty,
+            subtotal: item.price * qty
+          });
+        }
+      }
+
+      const newOrder = {
+        id: 'ORD-' + Date.now().toString().slice(-6),
+        timestamp: Date.now(),
+        timeStr: timeStr,
+        items: itemsSnapshot,
+        totalAmount: total,
+        totalQuantity: totalItems,
+        paid: currentPaid >= total ? currentPaid : total,
+        change: currentPaid >= total ? (currentPaid - total) : 0
+      };
+
+      // 儲存至今日訂單列表最前端
+      todayOrders.unshift(newOrder);
+      saveOrdersToStorage();
+
+      // 清空本單
+      clearCart();
+
+      // 更新統計與歷史
+      updateDashboard();
+
+      showToast(`✅ 結帳成功 $${newOrder.totalAmount}！(單號 #${newOrder.id})`);
+    }
+
+    // 更新即時銷售報表與統計
+    function updateDashboard() {
+      let revenue = 0;
+      let orderCount = todayOrders.length;
+      let totalQty = 0;
+
+      // 口味累積統計 { itemId: qty }
+      const itemQtyMap = {};
+      const itemRevenueMap = {};
+      MENU_ITEMS.forEach(m => {
+        itemQtyMap[m.id] = 0;
+        itemRevenueMap[m.id] = 0;
+      });
+
+      todayOrders.forEach(ord => {
+        revenue += ord.totalAmount;
+        ord.items.forEach(it => {
+          totalQty += it.qty;
+          if (itemQtyMap[it.id] !== undefined) {
+            itemQtyMap[it.id] += it.qty;
+            itemRevenueMap[it.id] += it.subtotal;
+          }
+        });
+      });
+
+      const avgTicket = orderCount > 0 ? Math.round(revenue / orderCount) : 0;
+
+      // 頂部小卡更新
+      document.getElementById('statTodayRevenue').textContent = `$${revenue.toLocaleString()}`;
+      document.getElementById('statTodayOrders').innerHTML = `${orderCount} <span class="text-xs font-normal">單</span>`;
+      document.getElementById('statAvgTicket').textContent = `$${avgTicket}`;
+      document.getElementById('statTodayItems').innerHTML = `${totalQty} <span class="text-xs font-normal">份</span>`;
+
+      // 渲染口味銷售明細長條圖
+      renderFlavorStats(itemQtyMap, itemRevenueMap, totalQty);
+
+      // 渲染歷史訂單列表
+      renderOrderHistory();
+
+      // 同步更新日結算彈窗預覽
+      updateDaySummaryModalContent(revenue, orderCount, totalQty, itemQtyMap, itemRevenueMap);
+    }
+
+    // 渲染口味銷售排行榜
+    function renderFlavorStats(qtyMap, revMap, totalQty) {
+      const container = document.getElementById('flavorStatsList');
+      container.innerHTML = '';
+
+      // 依銷售數量降冪排序
+      const sortedItems = [...MENU_ITEMS].sort((a, b) => qtyMap[b.id] - qtyMap[a.id]);
+
+      sortedItems.forEach(item => {
+        const qty = qtyMap[item.id] || 0;
+        const rev = revMap[item.id] || 0;
+        const percent = totalQty > 0 ? Math.round((qty / totalQty) * 100) : 0;
+
+        const row = document.createElement('div');
+        row.className = 'text-xs';
+        row.innerHTML = `
+          <div class="flex justify-between items-center mb-1">
+            <span class="font-bold text-stone-800 flex items-center gap-1">
+              <span>${item.icon}</span> ${item.name}
+            </span>
+            <span class="text-stone-600 font-mono">
+              <span class="font-black text-amber-900">${qty}</span> 份 
+              <span class="text-stone-400">($${rev})</span>
+            </span>
+          </div>
+          <div class="w-full bg-stone-100 rounded-full h-2 overflow-hidden flex">
+            <div class="bg-amber-500 h-2 rounded-full transition-all duration-500" style="width: ${percent}%;"></div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    // 渲染歷史訂單列表
+    function renderOrderHistory() {
+      const listContainer = document.getElementById('orderHistoryList');
+      const hint = document.getElementById('orderListCountHint');
+      hint.textContent = `共 ${todayOrders.length} 筆`;
+
+      if (todayOrders.length === 0) {
+        listContainer.innerHTML = '<div class="text-center py-8 text-stone-500 text-xs">尚無任何交易記錄</div>';
+        return;
+      }
+
+      listContainer.innerHTML = '';
+      todayOrders.forEach((order, index) => {
+        const itemSummary = order.items.map(i => `${i.name}×${i.qty}`).join(', ');
+
+        const card = document.createElement('div');
+        card.className = 'py-2.5 flex items-center justify-between text-xs hover:bg-amber-50/50 px-1 rounded-lg transition';
+        card.innerHTML = `
+          <div class="flex-1 min-w-0 pr-2">
+            <div class="flex items-center gap-2">
+              <span class="font-mono font-bold text-stone-500">${order.timeStr}</span>
+              <span class="font-mono text-[10px] bg-stone-100 text-stone-600 px-1 rounded">#${order.id}</span>
+            </div>
+            <p class="text-stone-800 font-medium truncate mt-0.5 text-[11px]">${itemSummary}</p>
+          </div>
+          <div class="text-right flex items-center gap-2">
+            <div>
+              <p class="font-black text-amber-950 text-sm">$${order.totalAmount}</p>
+              <p class="text-[10px] text-stone-600">${order.totalQuantity} 份</p>
+            </div>
+            <button onclick="promptVoidOrder('${order.id}')" title="作廢/刪除此單" class="p-1 text-stone-600 hover:text-red-700 rounded transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+          </div>
+        `;
+        listContainer.appendChild(card);
+      });
+    }
+
+    // 作廢單筆訂單二次確認
+    function promptVoidOrder(orderId) {
+      const order = todayOrders.find(o => o.id === orderId);
+      if (!order) return;
+
+      openConfirmModal({
+        icon: '🗑️',
+        title: '確定作廢此筆訂單？',
+        message: `即將作廢單號 #${order.id}（金額 $${order.totalAmount}）。此操作將自動自今日營收中扣除！`,
+        onConfirm: () => {
+          todayOrders = todayOrders.filter(o => o.id !== orderId);
+          saveOrdersToStorage();
+          updateDashboard();
+          showToast(`已作廢單號 #${orderId}`);
+        }
+      });
+    }
+
+    // 更新日結算彈窗內容與 LINE 格式報表
+    function updateDaySummaryModalContent(rev, orders, items, qtyMap, revMap) {
+      document.getElementById('modalSummaryRevenue').textContent = `$${rev.toLocaleString()}`;
+      document.getElementById('modalSummaryOrders').textContent = `${orders} 單`;
+      document.getElementById('modalSummaryItems').textContent = `${items} 份`;
+
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
+      
+      let reportText = `📢 【雞蛋糕餐車日結報表】\n`;
+      reportText += `📅 日期：${dateStr}\n`;
+      reportText += `💰 今日總營業額：$${rev.toLocaleString()} 元\n`;
+      reportText += `🧾 總交易單數：${orders} 單\n`;
+      reportText += `🧇 總賣出份數：${items} 份\n`;
+      reportText += `💡 平均客單價：$${orders > 0 ? Math.round(rev / orders) : 0} 元\n`;
+      reportText += `──────────────────\n`;
+      reportText += `【口味銷售統計明細】\n`;
+
+      MENU_ITEMS.forEach(m => {
+        const q = qtyMap[m.id] || 0;
+        const r = revMap[m.id] || 0;
+        reportText += `• ${m.name}：${q} 份 ($${r})\n`;
+      });
+      reportText += `──────────────────\n`;
+      reportText += `打烊結算時間：${now.toLocaleTimeString()}`;
+
+      document.getElementById('lineReportTextArea').value = reportText;
+    }
+
+    // 複製報表至剪貼簿
+    function copyLineReport() {
+      const copyTextarea = document.getElementById('lineReportTextArea');
+      copyTextarea.focus();
+      copyTextarea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          showToast('📋 日結報表已複製到剪貼簿，可直接貼到 LINE！');
+        } else {
+          showToast('⚠️ 複製失敗，請手動全選文字');
+        }
+      } catch (err) {
+        showToast('⚠️ 複製失敗，請手動長按選取');
+      }
+    }
+
+    // 匯出 CSV 檔案
+    function exportCSV() {
+      if (todayOrders.length === 0) {
+        showToast('⚠️ 今日尚無任何訂單可匯出');
+        return;
+      }
+
+      let csvContent = '\uFEFF單號,結帳時間,銷售品項明細,總數量,總金額,實收金額,找零\n';
+      todayOrders.forEach(o => {
+        const itemDesc = o.items.map(i => `${i.name}*${i.qty}`).join('; ');
+        csvContent += `"${o.id}","${o.timeStr}","${itemDesc}",${o.totalQuantity},${o.totalAmount},${o.paid},${o.change}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}`;
+      link.setAttribute('href', url);
+      link.setAttribute('download', `雞蛋糕營業報表_${dateStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('📥 已成功下載 CSV 銷售報表');
+    }
+
+    // 重置今日營收確認流程
+    function requestResetDayData() {
+      openConfirmModal({
+        icon: '⚠️',
+        title: '確定要重置今日資料？',
+        message: '即將清除今日所有訂單與銷售統計（開始全新的一天），建議已複製或匯出報表後再重置。',
+        onConfirm: () => {
+          todayOrders = [];
+          saveOrdersToStorage();
+          clearCart();
+          updateDashboard();
+          closeDaySummaryModal();
+          showToast('🔄 已成功重置今日營收，祝今日生意興隆！');
+        }
+      });
+    }
+
+    // 開啟/關閉結算彈窗
+    function openDaySummaryModal() {
+      document.getElementById('daySummaryModal').classList.remove('hidden');
+    }
+    function closeDaySummaryModal() {
+      document.getElementById('daySummaryModal').classList.add('hidden');
+    }
+
+    // 切換手機模式下的視圖 (點餐主畫面 vs 今日統計)
+    let isMobileStatsView = false;
+    function toggleMobileView() {
+      const posSec = document.getElementById('posSection');
+      const statSec = document.getElementById('statsSection');
+      const toggleText = document.getElementById('mobileViewToggleText');
+
+      isMobileStatsView = !isMobileStatsView;
+      if (isMobileStatsView) {
+        posSec.classList.add('hidden');
+        statSec.classList.remove('hidden');
+        toggleText.textContent = '返回點餐';
+      } else {
+        posSec.classList.remove('hidden');
+        statSec.classList.add('hidden');
+        toggleText.textContent = '今日報表';
+      }
+    }
+
+    // 輕量 Toast 提示訊息
+    let toastTimeout;
+    function showToast(msg) {
+      const toast = document.getElementById('toastNotification');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.textContent = msg;
+
+      clearTimeout(toastTimeout);
+      toast.classList.remove('translate-y-16', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-16', 'opacity-0');
+      }, 2500);
+    }
+
+    // 自定義 Confirm Modal
+    let pendingConfirmAction = null;
+    function openConfirmModal({ icon, title, message, onConfirm }) {
+      document.getElementById('confirmIcon').textContent = icon || '⚠️';
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMessage').textContent = message;
+      pendingConfirmAction = onConfirm;
+
+      const modal = document.getElementById('confirmModal');
+      modal.classList.remove('hidden');
+
+      document.getElementById('confirmCancelBtn').onclick = () => {
+        modal.classList.add('hidden');
+        pendingConfirmAction = null;
+      };
+
+      document.getElementById('confirmOkBtn').onclick = () => {
+        if (pendingConfirmAction) pendingConfirmAction();
+        modal.classList.add('hidden');
+        pendingConfirmAction = null;
+      };
+    }
+  </script>
+</body>
+</html>
